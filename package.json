@@ -3,6 +3,7 @@
     "express": "^4.17.2",
     "httpolyglot": "^0.1.2",
     "mediasoup": "^3.9.3",
+    "mediasoup-client": "^3.6.47",
     "nodemon": "^2.0.15",
     "socket.io": "^4.4.0",
     "socket.io-client": "^4.4.0"
@@ -11,9 +12,8 @@
   "version": "1.0.0",
   "description": "A multi-party video conferencing app",
   "main": "index.js",
-  "devDependencies": {},
   "scripts": {
-    "start:dev": "nodemon index.js",
+    "start:dev": "nodemon app.js",
     "watch": "watchify public/index.js -o public/bundle.js -v"
   },
   "author": "Manish Boro",
