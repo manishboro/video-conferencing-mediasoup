@@ -13,7 +13,8 @@
   "main": "index.js",
   "devDependencies": {},
   "scripts": {
-    "start:dev": "nodemon index.js"
+    "start:dev": "nodemon index.js",
+    "watch": "watchify public/index.js -o public/bundle.js -v"
   },
   "author": "Manish Boro",
   "license": "ISC",
