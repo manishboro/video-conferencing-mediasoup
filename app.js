@@ -1,30 +1,41 @@
+/**
+ * integrating mediasoup server with a node.js application
+ */
+
+/* Please follow mediasoup installation requirements */
+/* https://mediasoup.org/documentation/v3/mediasoup/installation/ */
 import express from "express";
+const app = express();
+
+import https from "httpolyglot";
 import fs from "fs";
 import path from "path";
-import https from "httpolyglot"; // A module for serving http and https connections over the same port.
-
-import { Server } from "socket.io";
-import mediasoup from "mediasoup";
-
-const app = express();
 const __dirname = path.resolve();
 
+import { Server } from "socket.io";
+import mediasoup, { getSupportedRtpCapabilities } from "mediasoup";
+
+app.get("/", (req, res) => {
+  res.send("Hello from mediasoup app!");
+});
+
+app.use("/sfu", express.static(path.join(__dirname, "public")));
+
+// SSL cert for HTTPS access
 const options = {
   key: fs.readFileSync("./server/ssl/key.pem", "utf-8"),
   cert: fs.readFileSync("./server/ssl/cert.pem", "utf-8"),
 };
 
-app.use("/sfu", express.static(path.join(__dirname, "public")));
-app.get("/", (req, res) => res.send("Hello from mediasoup app!"));
-
 const httpsServer = https.createServer(options, app);
-httpsServer.listen(3055, () => console.log("listening on port: " + 3055));
+httpsServer.listen(3055, () => {
+  console.log("listening on port: " + 3055);
+});
 
 const io = new Server(httpsServer);
-const peers = io.of("/mediasoup");
 
-// Create worker
-// Create router
+// socket.io namespace (could represent a room?)
+const peers = io.of("/mediasoup");
 
 /**
  * Worker
@@ -41,6 +52,25 @@ let consumerTransport;
 let producer;
 let consumer;
 
+const createWorker = async () => {
+  worker = await mediasoup.createWorker({
+    rtcMinPort: 2000,
+    rtcMaxPort: 2020,
+  });
+  console.log(`worker pid ${worker.pid}`);
+
+  worker.on("died", (error) => {
+    // This implies something serious happened, so kill the application
+    console.error("mediasoup worker has died");
+    setTimeout(() => process.exit(1), 2000); // exit in 2 seconds
+  });
+
+  return worker;
+};
+
+// We create a Worker as soon as our application starts
+worker = createWorker();
+
 // This is an Array of RtpCapabilities
 // https://mediasoup.org/documentation/v3/mediasoup/rtp-parameters-and-capabilities/#RtpCodecCapability
 // list of media codecs supported by mediasoup ...
@@ -56,54 +86,42 @@ const mediaCodecs = [
     kind: "video",
     mimeType: "video/VP8",
     clockRate: 90000,
-    parameters: { "x-google-start-bitrate": 1000 },
+    parameters: {
+      "x-google-start-bitrate": 1000,
+    },
   },
 ];
 
-const createWorker = async () => {
-  worker = await mediasoup.createWorker({ rtcMinPort: 2000, rtcMaxPort: 2020 });
-
-  console.log(`worker pid ${worker.pid}`);
-
-  worker.on("died", (error) => {
-    // This implies something serious happened, so kill the application
-    console.error("mediasoup worker has died");
-    setTimeout(() => process.exit(1), 2000); // exit in 2 seconds
-  });
-
-  return worker;
-};
-
-// We create a Worker as soon as our application starts
-worker = createWorker();
-
 peers.on("connection", async (socket) => {
-  // worker.createRouter(options)
-  // options = { mediaCodecs, appData }
-  // mediaCodecs -> defined above
-  // appData -> custom application data - we are not supplying any
-  // none of the two are required
-  router = await worker.createRouter({ mediaCodecs });
-
   console.log(socket.id);
-
-  socket.emit("connection-success", { socketId: socket.id });
+  socket.emit("connection-success", {
+    socketId: socket.id,
+    existsProducer: producer ? true : false,
+  });
 
   socket.on("disconnect", () => {
     // do some cleanup
     console.log("peer disconnected");
   });
 
-  // Client emits a request for RTP Capabilities
-  // This event responds to the request
-  socket.on("getRtpCapabilities", (callback) => {
-    const rtpCapabilities = router.rtpCapabilities;
+  socket.on("createRoom", async (callback) => {
+    if (router === undefined) {
+      // worker.createRouter(options)
+      // options = { mediaCodecs, appData }
+      // mediaCodecs -> defined above
+      // appData -> custom application data - we are not supplying any
+      // none of the two are required
+      router = await worker.createRouter({ mediaCodecs });
+      console.log(`Router ID: ${router.id}`);
+    }
 
-    console.log("rtp Capabilities", rtpCapabilities);
-
-    // call callback from the client and send back the rtpCapabilities
-    callback({ rtpCapabilities });
+    getRtpCapabilities(callback);
   });
+
+  const getRtpCapabilities = (callback) => {
+    const rtpCapabilities = router.rtpCapabilities;
+    callback({ rtpCapabilities });
+  };
 
   // Client emits a request to create server side Transport
   // We need to differentiate between the producer and consumer transports
@@ -154,7 +172,12 @@ peers.on("connection", async (socket) => {
   socket.on("consume", async ({ rtpCapabilities }, callback) => {
     try {
       // check if the router can consume the specified producer
-      if (router.canConsume({ producerId: producer.id, rtpCapabilities })) {
+      if (
+        router.canConsume({
+          producerId: producer.id,
+          rtpCapabilities,
+        })
+      ) {
         // transport can now consume and return a consumer
         consumer = await consumerTransport.consume({
           producerId: producer.id,
@@ -184,7 +207,11 @@ peers.on("connection", async (socket) => {
       }
     } catch (error) {
       console.log(error.message);
-      callback({ params: { error: error } });
+      callback({
+        params: {
+          error: error,
+        },
+      });
     }
   });
 
@@ -200,8 +227,8 @@ const createWebRtcTransport = async (callback) => {
     const webRtcTransport_options = {
       listenIps: [
         {
-          ip: "0.0.0.0", // replace "ip" with relevant IP address
-          announcedIp: "127.0.0.1", // Host machine
+          ip: "0.0.0.0", // replace with relevant IP address
+          announcedIp: "127.0.0.1",
         },
       ],
       enableUdp: true,
