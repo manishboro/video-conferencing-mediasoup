@@ -14,7 +14,7 @@
   "description": "A multi-party video conferencing app",
   "main": "index.js",
   "scripts": {
-    "start:dev": "nodemon app.js",
+    "start:dev": "nodemon server/app.js",
     "watch": "watchify public/index.js -o public/bundle.js -v"
   },
   "author": "Manish Boro",
