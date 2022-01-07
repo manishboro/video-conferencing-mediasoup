@@ -3,14 +3,6 @@ const io = require("socket.io-client");
 const mediasoupClient = require("mediasoup-client");
 
 const roomName = window.location.pathname.split("/")[2];
-
-const socket = io("/mediasoup");
-
-socket.on("connection-success", ({ socketId }) => {
-  console.log(socketId);
-  getLocalStream();
-});
-
 let device;
 let rtpCapabilities;
 let producerTransport;
@@ -19,40 +11,25 @@ let producer;
 let consumer;
 let isProducer = false;
 
+const socket = io("/mediasoup");
+
 // https://mediasoup.org/documentation/v3/mediasoup-client/api/#ProducerOptions
 // https://mediasoup.org/documentation/v3/mediasoup-client/api/#transport-produce
 let params = {
   // mediasoup params
   encodings: [
-    {
-      rid: "r0",
-      maxBitrate: 100000,
-      scalabilityMode: "S1T3",
-    },
-    {
-      rid: "r1",
-      maxBitrate: 300000,
-      scalabilityMode: "S1T3",
-    },
-    {
-      rid: "r2",
-      maxBitrate: 900000,
-      scalabilityMode: "S1T3",
-    },
+    { rid: "r0", maxBitrate: 100000, scalabilityMode: "S1T3" },
+    { rid: "r1", maxBitrate: 300000, scalabilityMode: "S1T3" },
+    { rid: "r2", maxBitrate: 900000, scalabilityMode: "S1T3" },
   ],
   // https://mediasoup.org/documentation/v3/mediasoup-client/api/#ProducerCodecOptions
-  codecOptions: {
-    videoGoogleStartBitrate: 1000,
-  },
+  codecOptions: { videoGoogleStartBitrate: 1000 },
 };
 
 const streamSuccess = (stream) => {
   localVideo.srcObject = stream;
   const track = stream.getVideoTracks()[0];
-  params = {
-    track,
-    ...params,
-  };
+  params = { track, ...params };
 
   joinRoom();
 };
@@ -74,20 +51,12 @@ const getLocalStream = () => {
     .getUserMedia({
       audio: false,
       video: {
-        width: {
-          min: 640,
-          max: 1920,
-        },
-        height: {
-          min: 400,
-          max: 1080,
-        },
+        width: { min: 640, max: 1920 },
+        height: { min: 400, max: 1080 },
       },
     })
     .then(streamSuccess)
-    .catch((error) => {
-      console.log(error.message);
-    });
+    .catch((error) => console.log(error.message));
 };
 
 // A device is an endpoint connecting to a Router on the
@@ -255,11 +224,6 @@ const signalNewConsumerTransport = async (remoteProducerId) => {
   );
 };
 
-// server informs the client of a new producer just joined
-socket.on("new-producer", ({ producerId }) =>
-  signalNewConsumerTransport(producerId)
-);
-
 const getProducers = () => {
   socket.emit("getProducers", (producerIds) => {
     console.log(producerIds);
@@ -334,6 +298,16 @@ const connectRecvTransport = async (
     }
   );
 };
+
+socket.on("connection-success", ({ socketId }) => {
+  console.log(socketId);
+  getLocalStream();
+});
+
+// server informs the client of a new producer just joined
+socket.on("new-producer", ({ producerId }) =>
+  signalNewConsumerTransport(producerId)
+);
 
 socket.on("producer-closed", ({ remoteProducerId }) => {
   // server notification is received when a producer is closed
