@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import CustomButton from "../../components/Reusable/Button";
+import CustomButton from "../../components/Reusable/CustomButton";
 
 export default function Error() {
   return (

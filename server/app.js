@@ -7,7 +7,7 @@ const path = require("path");
 const mediasoup = require("mediasoup");
 const { Server } = require("socket.io");
 
-dotenv.config({ path: "./config.env" });
+dotenv.config();
 
 // To handle uncaught exceptions / errors occurred in synchronous code
 process.on("uncaughtException", (err) => {
@@ -21,11 +21,7 @@ let PORT = process.env.PORT;
 
 console.log("Environment :", process.env.NODE_ENV);
 
-app.use(
-  cors(),
-  express.json(),
-  express.static(path.resolve(__dirname, "../build"))
-);
+app.use(cors(), express.json(), express.static(path.resolve(__dirname, "../build")));
 
 // SSL cert for HTTPS access
 const options = {
@@ -33,33 +29,54 @@ const options = {
   cert: fs.readFileSync("./server/ssl/cert.pem", "utf-8"),
 };
 
+let worker;
+let rooms = {}; // { roomName1: { Router, rooms: [ sicketId1, ... ] }, ...}
+let peers = {}; // { socketId1: { roomName1, socket, transports = [id1, id2,] }, producers = [id1, id2,] }, consumers = [id1, id2,], peerDetails }, ...}
+let transports = []; // [ { socketId1, roomName1, transport, consumer }, ... ]
+let producers = []; // [ { socketId1, roomName1, producer, }, ... ]
+let consumers = []; // [ { socketId1, roomName1, consumer, }, ... ]
+
+console.log("rooms", rooms);
+console.log("peers", peers);
+
+// This is an Array of RtpCapabilities
+// https://mediasoup.org/documentation/v3/mediasoup/rtp-parameters-and-capabilities/#RtpCodecCapability
+// list of media codecs supported by mediasoup ...
+// https://github.com/versatica/mediasoup/blob/v3/src/supportedRtpCapabilities.ts
+const mediaCodecs = [
+  {
+    kind: "audio",
+    mimeType: "audio/opus",
+    clockRate: 48000,
+    channels: 2,
+  },
+  {
+    kind: "video",
+    mimeType: "video/VP8",
+    clockRate: 90000,
+    parameters: { "x-google-start-bitrate": 1000 },
+  },
+];
+
 // Add middlewares
-app.use(
-  cors(),
-  express.json(),
-  express.static(path.resolve(__dirname, "../build"))
-);
+app.use(cors(), express.json(), express.static(path.resolve(__dirname, "../build")));
 
 app.get("/api", (req, res) => res.send("<h1>Running !!</h1>"));
 
 // Redirect all unmatched routes to React
-app.get("*", (req, res) =>
-  res.sendFile(path.resolve(__dirname, "../build", "index.html"))
-);
+app.get("*", (req, res) => res.sendFile(path.resolve(__dirname, "../build", "index.html")));
 
 // Starting express server and socket.io
 const httpsServer = https.createServer(options, app);
 
-const server = httpsServer.listen(PORT, () =>
-  console.log("Listening on port : " + PORT)
-);
+const server = httpsServer.listen(PORT, () => console.log("Listening on port : " + PORT));
 
-const io = new Server(httpsServer, {
+const connections = new Server(httpsServer, {
   cors: { origin: "*", methods: ["GET", "POST"] },
 });
 
 // socket.io namespace (could represent a room ?)
-const connections = io.of("/mediasoup");
+// const connections = io.of("/mediasoup");
 
 /*
  * Worker
@@ -104,9 +121,7 @@ const createWebRtcTransport = async (router) => {
       };
 
       // https://mediasoup.org/documentation/v3/mediasoup/api/#router-createWebRtcTransport
-      let transport = await router.createWebRtcTransport(
-        webRtcTransport_options
-      );
+      let transport = await router.createWebRtcTransport(webRtcTransport_options);
 
       console.log(`transport id: ${transport.id}`);
 
@@ -124,7 +139,7 @@ const createWebRtcTransport = async (router) => {
 };
 
 connections.on("connection", async (socket) => {
-  console.log(socket.id);
+  console.log("socket ID", socket.id);
 
   socket.emit("connection-success", { socketId: socket.id });
 
@@ -156,19 +171,13 @@ connections.on("connection", async (socket) => {
 
     console.log(`Router ID: ${router1.id}`, peers.length);
 
-    rooms[roomName] = {
-      router: router1,
-      peers: [...peers, socketId],
-    };
+    rooms[roomName] = { router: router1, peers: [...peers, socketId] };
 
     return router1;
   };
 
   const addTransport = (transport, roomName, consumer) => {
-    transports = [
-      ...transports,
-      { socketId: socket.id, transport, roomName, consumer },
-    ];
+    transports = [...transports, { socketId: socket.id, transport, roomName, consumer }];
 
     peers[socket.id] = {
       ...peers[socket.id],
@@ -201,10 +210,7 @@ connections.on("connection", async (socket) => {
     // A new producer just joined
     // let all consumers to consume this producer
     producers.forEach((producerData) => {
-      if (
-        producerData.socketId !== socketId &&
-        producerData.roomName === roomName
-      ) {
+      if (producerData.socketId !== socketId && producerData.roomName === roomName) {
         const producerSocket = peers[producerData.socketId].socket;
         // use socket to send producer id to producer
         producerSocket.emit("new-producer", { producerId: id });
@@ -216,6 +222,7 @@ connections.on("connection", async (socket) => {
     const [producerTransport] = transports.filter(
       (transport) => transport.socketId === socketId && !transport.consumer
     );
+
     return producerTransport.transport;
   };
 
@@ -226,17 +233,21 @@ connections.on("connection", async (socket) => {
     producers = removeItems(producers, socket.id, "producer");
     transports = removeItems(transports, socket.id, "transport");
 
-    const { roomName } = peers[socket.id];
-    delete peers[socket.id];
+    if (peers[socket.id]) {
+      const { roomName } = peers[socket.id];
+      delete peers[socket.id];
 
-    // remove socket from room
-    rooms[roomName] = {
-      router: rooms[roomName].router,
-      peers: rooms[roomName].peers.filter((socketId) => socketId !== socket.id),
-    };
+      // Remove socket from room
+      rooms[roomName] = {
+        router: rooms[roomName].router,
+        peers: rooms[roomName].peers.filter((socketId) => socketId !== socket.id),
+      };
+    }
   });
 
   socket.on("joinRoom", async ({ roomName }, callback) => {
+    console.log("roomName", roomName);
+
     // create Router if it does not exist
     // const router1 = rooms[roomName] && rooms[roomName].get('data').router || await createRoom(roomName, socket.id)
     const router1 = await createRoom(roomName, socket.id);
@@ -283,9 +294,7 @@ connections.on("connection", async (socket) => {
         // add transport to Peer's properties
         addTransport(transport, roomName, consumer);
       },
-      (error) => {
-        console.log(error);
-      }
+      (error) => console.log(error)
     );
   });
 
@@ -295,10 +304,7 @@ connections.on("connection", async (socket) => {
 
     let producerList = [];
     producers.forEach((producerData) => {
-      if (
-        producerData.socketId !== socket.id &&
-        producerData.roomName === roomName
-      ) {
+      if (producerData.socketId !== socket.id && producerData.roomName === roomName) {
         producerList = [...producerList, producerData.producer.id];
       }
     });
@@ -315,130 +321,107 @@ connections.on("connection", async (socket) => {
   });
 
   // see client's socket.emit('transport-produce', ...)
-  socket.on(
-    "transport-produce",
-    async ({ kind, rtpParameters, appData }, callback) => {
-      // call produce based on the prameters from the client
-      const producer = await getTransport(socket.id).produce({
-        kind,
-        rtpParameters,
-      });
+  socket.on("transport-produce", async ({ kind, rtpParameters, appData }, callback) => {
+    // call produce based on the prameters from the client
+    const producer = await getTransport(socket.id).produce({
+      kind,
+      rtpParameters,
+    });
 
-      // add producer to the producers array
-      const { roomName } = peers[socket.id];
+    // add producer to the producers array
+    const { roomName } = peers[socket.id];
 
-      addProducer(producer, roomName);
+    addProducer(producer, roomName);
 
-      informConsumers(roomName, socket.id, producer.id);
+    informConsumers(roomName, socket.id, producer.id);
 
-      console.log("Producer ID: ", producer.id, producer.kind);
+    console.log("Producer ID: ", producer.id, producer.kind);
 
-      producer.on("transportclose", () => {
-        console.log("transport for this producer closed ");
-        producer.close();
-      });
+    producer.on("transportclose", () => {
+      console.log("transport for this producer closed ");
+      producer.close();
+    });
 
-      // Send back to the client the Producer's id
-      callback({
-        id: producer.id,
-        producersExist: producers.length > 1 ? true : false,
-      });
-    }
-  );
+    // Send back to the client the Producer's id
+    callback({
+      id: producer.id,
+      producersExist: producers.length > 1 ? true : false,
+    });
+  });
 
   // see client's socket.emit('transport-recv-connect', ...)
-  socket.on(
-    "transport-recv-connect",
-    async ({ dtlsParameters, serverConsumerTransportId }) => {
-      console.log(`DTLS PARAMS: ${dtlsParameters}`);
-      const consumerTransport = transports.find(
-        (transportData) =>
-          transportData.consumer &&
-          transportData.transport.id == serverConsumerTransportId
+  socket.on("transport-recv-connect", async ({ dtlsParameters, serverConsumerTransportId }) => {
+    console.log(`DTLS PARAMS: ${dtlsParameters}`);
+    const consumerTransport = transports.find(
+      (transportData) => transportData.consumer && transportData.transport.id == serverConsumerTransportId
+    ).transport;
+    await consumerTransport.connect({ dtlsParameters });
+  });
+
+  socket.on("consume", async ({ rtpCapabilities, remoteProducerId, serverConsumerTransportId }, callback) => {
+    try {
+      const { roomName } = peers[socket.id];
+      const router = rooms[roomName].router;
+      let consumerTransport = transports.find(
+        (transportData) => transportData.consumer && transportData.transport.id == serverConsumerTransportId
       ).transport;
-      await consumerTransport.connect({ dtlsParameters });
-    }
-  );
 
-  socket.on(
-    "consume",
-    async (
-      { rtpCapabilities, remoteProducerId, serverConsumerTransportId },
-      callback
-    ) => {
-      try {
-        const { roomName } = peers[socket.id];
-        const router = rooms[roomName].router;
-        let consumerTransport = transports.find(
-          (transportData) =>
-            transportData.consumer &&
-            transportData.transport.id == serverConsumerTransportId
-        ).transport;
-
-        // check if the router can consume the specified producer
-        if (
-          router.canConsume({
-            producerId: remoteProducerId,
-            rtpCapabilities,
-          })
-        ) {
-          // transport can now consume and return a consumer
-          const consumer = await consumerTransport.consume({
-            producerId: remoteProducerId,
-            rtpCapabilities,
-            paused: true,
-          });
-
-          consumer.on("transportclose", () => {
-            console.log("transport close from consumer");
-          });
-
-          consumer.on("producerclose", () => {
-            console.log("producer of consumer closed");
-            socket.emit("producer-closed", { remoteProducerId });
-
-            consumerTransport.close([]);
-            transports = transports.filter(
-              (transportData) =>
-                transportData.transport.id !== consumerTransport.id
-            );
-            consumer.close();
-            consumers = consumers.filter(
-              (consumerData) => consumerData.consumer.id !== consumer.id
-            );
-          });
-
-          addConsumer(consumer, roomName);
-
-          // from the consumer extract the following params
-          // to send back to the Client
-          const params = {
-            id: consumer.id,
-            producerId: remoteProducerId,
-            kind: consumer.kind,
-            rtpParameters: consumer.rtpParameters,
-            serverConsumerId: consumer.id,
-          };
-
-          // send the parameters to the client
-          callback({ params });
-        }
-      } catch (error) {
-        console.log(error.message);
-        callback({
-          params: {
-            error: error,
-          },
+      // check if the router can consume the specified producer
+      if (
+        router.canConsume({
+          producerId: remoteProducerId,
+          rtpCapabilities,
+        })
+      ) {
+        // transport can now consume and return a consumer
+        const consumer = await consumerTransport.consume({
+          producerId: remoteProducerId,
+          rtpCapabilities,
+          paused: true,
         });
+
+        consumer.on("transportclose", () => {
+          console.log("transport close from consumer");
+        });
+
+        consumer.on("producerclose", () => {
+          console.log("producer of consumer closed");
+          socket.emit("producer-closed", { remoteProducerId });
+
+          consumerTransport.close([]);
+          transports = transports.filter((transportData) => transportData.transport.id !== consumerTransport.id);
+          consumer.close();
+          consumers = consumers.filter((consumerData) => consumerData.consumer.id !== consumer.id);
+        });
+
+        addConsumer(consumer, roomName);
+
+        // from the consumer extract the following params
+        // to send back to the Client
+        const params = {
+          id: consumer.id,
+          producerId: remoteProducerId,
+          kind: consumer.kind,
+          rtpParameters: consumer.rtpParameters,
+          serverConsumerId: consumer.id,
+        };
+
+        // send the parameters to the client
+        callback({ params });
       }
+    } catch (error) {
+      console.log(error.message);
+      callback({
+        params: {
+          error: error,
+        },
+      });
     }
-  );
+  });
 
   socket.on("consumer-resume", async ({ serverConsumerId }) => {
     console.log("consumer resume");
-    const { consumer } = consumers.find(
-      (consumerData) => consumerData.consumer.id === serverConsumerId
-    );
+    const { consumer } = consumers.find((consumerData) => consumerData.consumer.id === serverConsumerId);
     await consumer.resume();
   });
 });
