@@ -36,7 +36,8 @@
     "test": "react-scripts test",
     "eject": "react-scripts eject",
     "start:dev": "concurrently \"nodemon server/app.js\" \"npm run start\"",
-    "start:prod": "nodemon server/app.js"
+    "start:prod": "nodemon server/app.js",
+    "start:prod_main": "pm2 start server/app.js"
   },
   "eslintConfig": {
     "extends": [
