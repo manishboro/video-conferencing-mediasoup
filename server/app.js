@@ -25,8 +25,9 @@ app.use(cors(), express.json(), express.static(path.resolve(__dirname, "../build
 
 // SSL cert for HTTPS access
 const options = {
-  key: fs.readFileSync(process.env.KEY_LOCATION, "utf-8"),
-  cert: fs.readFileSync(process.env.CERT_LOCATION, "utf-8"),
+  key: fs.readFileSync(process.env.KEY_LOCATION),
+  cert: fs.readFileSync(process.env.CERT_LOCATION),
+  ca: fs.readFileSync(process.env.CA_LOCATION),
 };
 
 let worker;
