@@ -26,7 +26,6 @@ const options = {
   ca: fs.readFileSync(process.env.CA_LOCATION),
 };
 
-let router;
 let rooms = {}; // { roomName1: { Router, rooms: [ sicketId1, ... ] }, ...}
 let peers = {}; // { socketId1: { roomName1, socket, transports = [id1, id2,] }, producers = [id1, id2,] }, consumers = [id1, id2,], peerDetails }, ...}
 let transports = []; // [ { socketId1, roomName1, transport, consumer }, ... ]
