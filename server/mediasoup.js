@@ -39,7 +39,6 @@ module.exports.createRouter = async () => {
 };
 
 module.exports.createTransport = async (transportType, router, options) => {
-  //   console.log("createTransport() [type:%s. options:%o]", transportType, options);
   console.log("createTransport()", transportType);
 
   switch (transportType) {

@@ -60,7 +60,8 @@ let theme = createTheme({
       light_blue: "#00a3c8",
       medium_red: "#ff005a",
 
-      dark_grey: "#575757",
+      dark_grey: "#202124",
+      dark_grey_md: "#575757",
     },
   },
 });

@@ -2,7 +2,10 @@ import React from "react";
 import { useParams } from "react-router-dom";
 import { nanoid } from "nanoid";
 
-import { Box, Grid } from "@mui/material";
+import { Box, Grid, IconButton } from "@mui/material";
+import MicTwoToneIcon from "@mui/icons-material/MicTwoTone";
+import VideocamTwoToneIcon from "@mui/icons-material/VideocamTwoTone";
+import CallEndTwoToneIcon from "@mui/icons-material/CallEndTwoTone";
 
 import VideoPlayer from "../../components/VideoPlayer";
 import SocketFunction from "../../utils/socket_functions";
@@ -50,24 +53,64 @@ const Video = () => {
     });
 
     return () => socket.removeAllListeners();
+
+    // eslint-disable-next-line
   }, [socketFn]);
 
   return (
-    <Box sx={{ position: "relative", height: "100%", padding: "3rem" }}>
-      <Grid container spacing={3} justifyContent="center" alignItems="center" sx={{ height: "100%" }}>
-        {/* Local stream */}
-        <Grid item xs={12} sm={12} md={6}>
-          <VideoPlayer stream={myStream} />
-        </Grid>
+    <>
+      <Box sx={{ position: "relative", height: "100%", bgcolor: "custom.dark_grey" }}>
+        <Box sx={{ height: "calc(100% - 7rem)", position: "relative", overflow: "auto", padding: "0 2rem" }}>
+          <Grid container justifyContent="center" alignItems="center" sx={{ height: "100%" }}>
+            {/* Local stream */}
+            <Grid item xs={12} sm={6} md={Array.isArray(remoteStreams) && remoteStreams.length ? 6 : 12}>
+              <VideoPlayer stream={myStream} />
+            </Grid>
 
-        {/* Remote streams */}
-        {remoteStreams.map((el) => (
-          <Grid item xs={12} sm={12} md={6} key={nanoid()}>
-            <VideoPlayer stream={el.stream} />
+            {/* Remote streams */}
+            {remoteStreams.map((el) => (
+              <Grid item xs={12} sm={6} md={6} key={nanoid()}>
+                <VideoPlayer stream={el.stream} />
+              </Grid>
+            ))}
           </Grid>
-        ))}
-      </Grid>
-    </Box>
+        </Box>
+      </Box>
+
+      <Box
+        component="footer"
+        sx={{
+          position: "absolute",
+          bottom: 0,
+          width: "100%",
+          height: "7rem",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+
+          "& > *:not(:last-child)": { marginRight: "1rem" },
+        }}
+      >
+        <IconButton sx={{ bgcolor: "custom.dark_grey_md", "&:hover": { bgcolor: "custom.dark_grey_md" } }}>
+          <MicTwoToneIcon sx={{ fontSize: "2.8rem", color: "white" }} />
+        </IconButton>
+
+        <IconButton sx={{ bgcolor: "custom.dark_grey_md", "&:hover": { bgcolor: "custom.dark_grey_md" } }}>
+          <VideocamTwoToneIcon sx={{ fontSize: "2.8rem", color: "white" }} />
+        </IconButton>
+
+        <IconButton
+          sx={{
+            bgcolor: "custom.medium_red",
+            width: "6rem",
+            borderRadius: "3rem",
+            "&:hover": { bgcolor: "custom.medium_red" },
+          }}
+        >
+          <CallEndTwoToneIcon sx={{ fontSize: "2.8rem", color: "white" }} />
+        </IconButton>
+      </Box>
+    </>
   );
 };
 

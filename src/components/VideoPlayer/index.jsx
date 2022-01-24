@@ -9,29 +9,37 @@ const VideoPlayer = ({ stream }) => {
   }, [stream]);
 
   return (
-    <Box
-      sx={{
-        position: "relative",
-        /* 16:9, for an aspect ratio of 1:1 change to this value to 100% */
-        paddingBottom: "56.25%",
-        backgroundColor: "#dcdcdc",
-      }}
-    >
-      {stream && (
-        <Box
-          component="video"
-          playsInline
-          ref={videoRef}
-          autoPlay
-          sx={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            width: "100%",
-            height: "100%",
-          }}
-        />
-      )}
+    <Box sx={{ width: "100%", maxWidth: "120rem", margin: "auto", padding: ".5rem" }}>
+      <Box
+        sx={{
+          position: "relative",
+          width: "100%",
+          maxWidth: "100%",
+          height: 0,
+          paddingBottom: "56.25%" /* 16:9, for an aspect ratio of 1:1 change to this value to 100% */,
+          backgroundColor: "#dcdcdc",
+          overflow: "hidden",
+        }}
+      >
+        {stream && (
+          <Box
+            component="video"
+            playsInline
+            ref={videoRef}
+            autoPlay
+            sx={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100% !important",
+              maxWidth: "100%",
+              height: "100% !important",
+              transform: "rotateY(180deg)",
+              objectFit: "cover",
+            }}
+          />
+        )}
+      </Box>
     </Box>
   );
 };
