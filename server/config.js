@@ -1,5 +1,8 @@
 // Config file for mediasoup elements
 const os = require("os");
+const dotenv = require("dotenv");
+
+dotenv.config();
 
 module.exports = Object.freeze({
   numWorkers: Object.keys(os.cpus()).length,
