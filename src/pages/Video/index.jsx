@@ -30,6 +30,8 @@ const Video = () => {
 
         setMyStream(response.stream);
 
+        // socketFn.joinRoom({ ...params, track: response.track });
+
         socketFn.joinRoom({ ...params, track: response.track });
       } catch (err) {
         console.warn(err.message);
@@ -57,20 +59,30 @@ const Video = () => {
     // eslint-disable-next-line
   }, [socketFn]);
 
+  console.log("remoteStreams", remoteStreams);
+
   return (
     <>
       <Box sx={{ position: "relative", height: "100%", bgcolor: "custom.dark_grey" }}>
         <Box sx={{ height: "calc(100% - 7rem)", position: "relative", overflow: "auto", padding: "0 2rem" }}>
           <Grid container justifyContent="center" alignItems="center" sx={{ height: "100%" }}>
             {/* Local stream */}
-            <Grid item xs={12} sm={6} md={Array.isArray(remoteStreams) && remoteStreams.length ? 6 : 12}>
-              <VideoPlayer stream={myStream} />
+            <Grid
+              item
+              xs={12}
+              sm={Array.isArray(remoteStreams) && remoteStreams.length ? 6 : 12}
+              md={Array.isArray(remoteStreams) && remoteStreams.length ? 6 : 12}
+            >
+              <VideoPlayer stream={myStream} muted={true} />
             </Grid>
 
             {/* Remote streams */}
             {remoteStreams.map((el) => (
               <Grid item xs={12} sm={6} md={6} key={nanoid()}>
                 <VideoPlayer stream={el.stream} />
+                {/* {el.stream.kind === "video" && <VideoPlayer stream={new MediaStream([el.stream])} />} */}
+                {/* hello */}
+                {/* <VideoPlayer stream={new MediaStream([el.audioTrack, el.videoTrack])} /> */}
               </Grid>
             ))}
           </Grid>

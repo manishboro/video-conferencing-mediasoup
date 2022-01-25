@@ -12,13 +12,13 @@ export default class SocketFunction {
     this.consumerTransport = undefined;
     this.consumerTransports = [];
     this.producer = undefined;
+    this.videoProducer = undefined;
+    this.audioProducer = undefined;
 
     this.remoteStreams = [];
   }
 
   joinRoom(connectionParams) {
-    console.log("hello");
-
     this.socket.emit("joinRoom", { roomName: this.roomName }, (data) => {
       // We assign to local variable and will be used when
       // loading the client Device (see createDevice above)
@@ -71,7 +71,7 @@ export default class SocketFunction {
       this.producerTransport = this.device.createSendTransport(params);
 
       // https://mediasoup.org/documentation/v3/communication-between-client-and-server/#producing-media
-      // this event is raised when a first call to transport.produce() is made
+      // This event is raised when a first call to transport.produce() is made
       // see connectSendTransport() below
       this.producerTransport.on("connect", async ({ dtlsParameters }, callback, errback) => {
         try {
@@ -96,17 +96,14 @@ export default class SocketFunction {
           // see server's socket.on('transport-produce', ...)
           await this.socket.emit(
             "transport-produce",
-            {
-              kind: parameters.kind,
-              rtpParameters: parameters.rtpParameters,
-              appData: parameters.appData,
-            },
-            ({ id, producersExist }) => {
-              // Tell the transport that parameters were transmitted and provide it with the
-              // server side producer's id.
+            { kind: parameters.kind, rtpParameters: parameters.rtpParameters, appData: parameters.appData },
+            ({ id, kind, producersExist }) => {
+              // Tell the transport that parameters were transmitted and provide it with the server side producer's id.
+              // console.log(id, kind);
+
               callback({ id });
 
-              // if producers exist, then join room
+              // If producers exist, then join room
               if (producersExist) this.getProducers();
             }
           );
@@ -115,46 +112,72 @@ export default class SocketFunction {
         }
       });
 
-      this.connectSendTransport(connectionParams);
+      this.connectSendTransport(this.producerTransport, connectionParams);
     });
   }
 
-  getProducers() {
-    this.socket.emit("getProducers", (producerIds) => {
-      console.log("Producer IDs", producerIds);
-
-      // For each of the producer create a consumer
-      // producerIds.forEach(id => signalNewConsumerTransport(id))
-      producerIds.forEach((el) => this.signalNewConsumerTransport(el));
-    });
-  }
-
-  async connectSendTransport(connectionParams) {
-    // we now call produce() to instruct the producer transport
-    // to send media to the Router
+  async connectSendTransport(producerTransport, connectionParams) {
+    // we now call produce() to instruct the producer transport to send media to the Router
     // https://mediasoup.org/documentation/v3/mediasoup-client/api/#transport-produce
     // this action will trigger the 'connect' and 'produce' events above
+
+    // if (connectionParams.track) {
+    //   this.producer = await this.producerTransport.produce(connectionParams);
+
+    //   this.producer.on("trackended", () => {
+    //     console.log("track ended");
+    //     // close video track
+    //   });
+
+    //   this.producer.on("transportclose", () => {
+    //     console.log("transport ended");
+    //     // close video track
+    //   });
+    // }
+
     if (connectionParams.track) {
-      this.producer = await this.producerTransport.produce(connectionParams);
+      let track = connectionParams.track;
 
-      this.producer.on("trackended", () => {
-        console.log("track ended");
-        // close video track
-      });
+      // Produce video track
+      if (track.videoTrack) {
+        this.videoProducer = await producerTransport.produce({
+          track: track.videoTrack,
+          codec: this.device.rtpCapabilities.codecs.find((codec) => codec.mimeType.toLowerCase() === "video/h264"),
+        });
 
-      this.producer.on("transportclose", () => {
-        console.log("transport ended");
-        // close video track
-      });
+        this.videoProducer.on("trackended", () => {
+          console.log("track ended"); // close video track
+        });
+
+        this.videoProducer.on("transportclose", () => {
+          console.log("transport ended"); // close video track
+        });
+      }
+
+      // Produce audio track
+      if (track.audioTrack) {
+        this.audioProducer = await producerTransport.produce({
+          track: track.audioTrack,
+          codec: this.device.rtpCapabilities.codecs.find((codec) => codec.mimeType.toLowerCase() === "audio/opus"),
+        });
+
+        this.audioProducer.on("trackended", () => {
+          console.log("track ended"); // close video track
+        });
+
+        this.audioProducer.on("transportclose", () => {
+          console.log("transport ended"); // close video track
+        });
+      }
     }
   }
 
   async signalNewConsumerTransport(remoteProducerId) {
     console.log("signalNewConsumerTransport", remoteProducerId);
 
+    // Make consumer true since now we are making transport for consumer
     await this.socket.emit("createWebRtcTransport", { consumer: true }, ({ params }) => {
-      // The server sends back params needed
-      // to create Send Transport on the client side
+      // The server sends back params needed to create Send Transport on the client side
       if (params.error) {
         console.log(params.error);
         return;
@@ -199,11 +222,7 @@ export default class SocketFunction {
     // If the router can consume, it will send back a set of params as below
     await this.socket.emit(
       "consume",
-      {
-        rtpCapabilities: this.device.rtpCapabilities,
-        remoteProducerId,
-        serverConsumerTransportId,
-      },
+      { rtpCapabilities: this.device.rtpCapabilities, remoteProducerId, serverConsumerTransportId },
       async ({ params }) => {
         if (params.error) {
           console.log("Cannot Consume");
@@ -211,8 +230,10 @@ export default class SocketFunction {
         }
 
         console.log(`Consumer Params ${params}`);
-        // then consume with the local consumer transport
-        // which creates a consumer
+        // Then consume with the local consumer transport which creates a consumer
+
+        console.log("producerId", params.producerId);
+
         const consumer = await consumerTransport.consume({
           id: params.id,
           producerId: params.producerId,
@@ -230,13 +251,44 @@ export default class SocketFunction {
           },
         ];
 
-        // destructure and retrieve the video track from the producer
+        // Destructure and retrieve the video track from the producer
         const { track } = consumer;
+
+        console.log("track", track.kind);
 
         this.remoteStreams = [...this.remoteStreams, track];
 
         // Add streams
-        this.setRemoteStreams((prev) => [...prev, { producerId: remoteProducerId, stream: new MediaStream([track]) }]);
+        this.setRemoteStreams((prev) => [
+          ...prev,
+          { producerId: remoteProducerId, kind: track.kind, stream: new MediaStream([track]) },
+        ]);
+        // this.setRemoteStreams((streams) => {
+        //   // console.log("remoteProducerId", remoteProducerId);
+
+        //   if (streams.length === 0 && track.kind === "audio") {
+        //     console.log("1");
+        //     return [...streams, { producerId: remoteProducerId, audioTrack: track }];
+        //   }
+
+        //   if (streams.length === 0 && track.kind === "video") {
+        //     console.log("2");
+        //     return [...streams, { producerId: remoteProducerId, videoTrack: track }];
+        //   }
+
+        //   return streams.map((stream) => {
+        //     if (stream.producerId === remoteProducerId && track.kind === "audio") {
+        //       console.log("3");
+        //       return { ...stream, audioTrack: track };
+        //     } else if (stream.producerId === remoteProducerId && track.kind === "video") {
+        //       console.log("4");
+        //       return { ...stream, videoTrack: track };
+        //     } else {
+        //       console.log("5");
+        //       return stream;
+        //     }
+        //   });
+        // });
 
         // console.log("remoteStreams", this.remoteStreams);
 
@@ -245,6 +297,16 @@ export default class SocketFunction {
         this.socket.emit("consumer-resume", { serverConsumerId: params.serverConsumerId });
       }
     );
+  }
+
+  getProducers() {
+    this.socket.emit("getProducers", (producerIds) => {
+      console.log("Producer IDs", producerIds);
+
+      // For each of the producer create a consumer
+      // producerIds.forEach(id => signalNewConsumerTransport(id))
+      producerIds.forEach((el) => this.signalNewConsumerTransport(el));
+    });
   }
 
   findProducerFromTransportsAndClose(remoteProducerId) {

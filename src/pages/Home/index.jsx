@@ -25,13 +25,16 @@ const Home = () => {
     myStream();
   }, []);
 
-  const createMeeting = () => navigate(`/video/${nanoid()}`);
+  const createMeeting = () => {
+    navigate(`/video/${nanoid()}`);
+    window.location.reload();
+  };
 
   return (
     <Box sx={{ position: "relative", height: "100%", padding: "3rem" }}>
       <Grid container spacing={3} justifyContent="center" alignItems="center" sx={{ height: "100%" }}>
         <Grid item xs={12} sm={12} md={6}>
-          <VideoPlayer stream={stream} />
+          <VideoPlayer stream={stream} muted={true} />
         </Grid>
 
         <Grid item xs={12} sm={12} md={6} sx={{ textAlign: "center" }}>

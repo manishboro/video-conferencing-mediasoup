@@ -1,7 +1,7 @@
 import { Box } from "@mui/system";
 import React from "react";
 
-const VideoPlayer = ({ stream }) => {
+const VideoPlayer = ({ stream, muted }) => {
   const videoRef = React.useRef();
 
   React.useEffect(() => {
@@ -27,6 +27,7 @@ const VideoPlayer = ({ stream }) => {
             playsInline
             ref={videoRef}
             autoPlay
+            muted={muted}
             sx={{
               position: "absolute",
               top: 0,
