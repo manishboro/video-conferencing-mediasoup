@@ -39,7 +39,10 @@ const Video = () => {
     });
 
     // Server informs the client of a new producer just joined
-    socket.on("new-producer", ({ producerId }) => socketFn.signalNewConsumerTransport(producerId));
+    socket.on("new-producer", ({ producer, producerId, kind }) => {
+      console.log("new-producer", producer);
+      socketFn.signalNewConsumerTransport(producerId, kind);
+    });
 
     socket.on("producer-closed", ({ remoteProducerId }) => {
       // Server notification is received when a producer is closed

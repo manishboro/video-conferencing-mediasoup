@@ -369,7 +369,7 @@ const connections = new Server(httpsServer, {
 // Initializing workers as soon as server starts
 (async () => {
   try {
-    console.log("starting server [processName:%s]", PROCESS_NAME);
+    // console.log("starting server [processName:%s]", PROCESS_NAME);
     await initializeWorkers();
 
     httpsServer.listen(SERVER_PORT, () => console.log("Socket Server listening on port %d", SERVER_PORT));
@@ -388,7 +388,7 @@ connections.on("connection", async (socket) => {
     // do some cleanup
     console.log("peer disconnected");
     consumers = removeItems(consumers, socket.id, "consumer", socket);
-    producers = removeItems(producers, socket.id, "producer", socket);
+    producers = removeProducers(producers, socket);
     transports = removeItems(transports, socket.id, "transport", socket);
 
     if (peers[socket.id]) {
@@ -459,7 +459,7 @@ connections.on("connection", async (socket) => {
 
     producers.forEach((producerData) => {
       if (producerData.socketId !== socket.id && producerData.roomName === roomName)
-        producerList = [...producerList, producerData.producer.id];
+        producerList = [...producerList, producerData /* producerData.producer.id*/];
     });
 
     // return the producer list back to the client
@@ -467,18 +467,22 @@ connections.on("connection", async (socket) => {
   });
 
   // see client's socket.emit('transport-connect', ...)
-  socket.on("transport-connect", ({ dtlsParameters }) => {
-    console.log("DTLS PARAMS... ", { dtlsParameters });
+  socket.on("transport-connect", async ({ dtlsParameters }) => {
+    // console.log("DTLS PARAMS... ", { dtlsParameters });
 
-    getTransport(socket.id).connect({ dtlsParameters });
+    console.log("transport-connect");
+
+    await getTransport(socket.id).connect({ dtlsParameters });
   });
 
   // see client's socket.emit('transport-produce', ...)
   socket.on("transport-produce", async ({ kind, rtpParameters, appData }, callback) => {
     // call produce based on the parameters from the client
+    console.log("transport-produce");
+
     const producer = await getTransport(socket.id).produce({ kind, rtpParameters });
 
-    // *** same socketId with different producers return same producerId
+    // *** same socketId with different producers return same producerId (May not be true)
 
     // Add producer to the producers array
     const { roomName } = peers[socket.id];
@@ -598,23 +602,81 @@ const addTransport = (transport, roomName, consumer, socket) => {
 };
 
 const addProducer = (producer, roomName, socket) => {
-  // kind can be "audio" or "video"
+  // "producer.kind" => {audio, video}
+
+  // producers = producers.length
+  //   ? producers.map((pro) =>
+  //       pro.socketId === socket.id
+  //         ? { ...pro, [`${producer.kind}Producer`]: { producerId: producer.id, kind: producer.kind, producer } }
+  //         : pro
+  //     )
+  //   : [
+  //       ...producers,
+  //       {
+  //         socketId: socket.id,
+  //         roomName,
+  //         [`${producer.kind}Producer`]: { producerId: producer.id, kind: producer.kind, producer },
+  //       },
+  //     ];
+
+  if (producers.length) {
+    if (producers.find((pro) => pro.socketId === socket.id)) {
+      producers = producers.map((pro) =>
+        pro.socketId === socket.id
+          ? { ...pro, [`${producer.kind}Producer`]: { producerId: producer.id, kind: producer.kind, producer } }
+          : pro
+      );
+
+      return;
+    }
+
+    producers = [
+      ...producers,
+      {
+        socketId: socket.id,
+        roomName,
+        [`${producer.kind}Producer`]: { producerId: producer.id, kind: producer.kind, producer },
+      },
+    ];
+
+    return;
+  }
+
   producers = [
     ...producers,
     {
       socketId: socket.id,
-      kind: producer.kind,
-      producer,
       roomName,
+      [`${producer.kind}Producer`]: { producerId: producer.id, kind: producer.kind, producer },
     },
   ];
+
+  // producers = [
+  //   ...producers,
+  //   {
+  //     socketId: socket.id,
+  //     producerId: producer.id,
+  //     kind: producer.kind,
+  //     producer
+  //     roomName,
+  //   },
+  // ];
 
   peers[socket.id] = { ...peers[socket.id], producers: [...peers[socket.id].producers, producer.id] };
 };
 
 const addConsumer = (consumer, roomName, socket) => {
   // add the consumer to the consumers list
-  consumers = [...consumers, { socketId: socket.id, consumer, roomName }];
+  consumers = [
+    ...consumers,
+    {
+      socketId: socket.id,
+      consumerId: consumer.id,
+      kind: consumer.kind,
+      consumer,
+      roomName,
+    },
+  ];
 
   // add the consumer id to the peers list
   peers[socket.id] = { ...peers[socket.id], consumers: [...peers[socket.id].consumers, consumer.id] };
@@ -623,12 +685,14 @@ const addConsumer = (consumer, roomName, socket) => {
 const informConsumers = (roomName, socketId, id) => {
   console.log(`just joined, id ${id} ${roomName}, ${socketId}`);
 
+  console.log("producers", producers);
+
   // A new producer just joined. Let all consumers to consume this producer except itself.
-  producers.forEach((producerData) => {
-    if (producerData.socketId !== socketId && producerData.roomName === roomName) {
-      const producerSocket = peers[producerData.socketId].socket;
+  producers.forEach((producer) => {
+    if (producer.socketId !== socketId && producer.roomName === roomName) {
+      const producerSocket = peers[producer.socketId].socket;
       // use socket to send producer id to producer
-      producerSocket.emit("new-producer", { producerId: id });
+      producerSocket.emit("new-producer", { producer, producerId: id, kind: producer.kind, socketId });
     }
   });
 };
@@ -642,6 +706,19 @@ const getTransport = (socketId) => {
 const removeItems = (items, socketId, type, socket) => {
   items.forEach((item) => {
     if (item.socketId === socket.id) item[type].close();
+  });
+
+  items = items.filter((item) => item.socketId !== socket.id);
+
+  return items;
+};
+
+const removeProducers = (items, socket) => {
+  items.forEach((item) => {
+    if (item.socketId === socket.id) {
+      item.audioProducer?.producer.close();
+      item.videoProducer?.producer.close();
+    }
   });
 
   items = items.filter((item) => item.socketId !== socket.id);

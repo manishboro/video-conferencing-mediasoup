@@ -56,8 +56,7 @@ export default class SocketFunction {
     // See server's socket.on('createWebRtcTransport', sender?, ...)
     // this is a call from Producer, so sender = true
     this.socket.emit("createWebRtcTransport", { consumer: false }, ({ params }) => {
-      // The server sends back params needed
-      // to create Send Transport on the client side
+      // The server sends back params needed to create Send Transport on the client side
       console.log("Transport Params", params);
 
       if (params.error) {
@@ -87,7 +86,7 @@ export default class SocketFunction {
       });
 
       this.producerTransport.on("produce", async (parameters, callback, errback) => {
-        console.log(parameters);
+        console.log("parameters", parameters);
 
         try {
           // Tell the server to create a Producer
@@ -172,8 +171,8 @@ export default class SocketFunction {
     }
   }
 
-  async signalNewConsumerTransport(remoteProducerId) {
-    console.log("signalNewConsumerTransport", remoteProducerId);
+  async signalNewConsumerTransport(remoteProducerId, kind) {
+    console.log("signalNewConsumerTransport", remoteProducerId, kind);
 
     // Make consumer true since now we are making transport for consumer
     await this.socket.emit("createWebRtcTransport", { consumer: true }, ({ params }) => {
@@ -229,7 +228,7 @@ export default class SocketFunction {
           return;
         }
 
-        console.log(`Consumer Params ${params}`);
+        console.log("Consumer Params");
         // Then consume with the local consumer transport which creates a consumer
 
         console.log("producerId", params.producerId);
@@ -263,6 +262,7 @@ export default class SocketFunction {
           ...prev,
           { producerId: remoteProducerId, kind: track.kind, stream: new MediaStream([track]) },
         ]);
+
         // this.setRemoteStreams((streams) => {
         //   // console.log("remoteProducerId", remoteProducerId);
 
