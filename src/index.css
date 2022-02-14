@@ -1,13 +1,70 @@
+@font-face {
+  font-family: Montserrat;
+  font-display: block;
+  src: url("./fonts/Montserrat-Regular.ttf");
+}
+
+@font-face {
+  font-family: "Open Sans";
+  font-display: block;
+  src: url("./fonts/OpenSans-Regular.ttf");
+}
+
+@font-face {
+  font-family: "Fjalla One";
+  font-display: block;
+  src: url("./fonts/FjallaOne-Regular.ttf");
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Montserrat";
+}
+
+html {
+  font-size: 62.5%;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background-color: #d6d6d6;
+  border-radius: 1rem;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #8b8b8b;
+  border-radius: 1rem;
+  transition: ease 0.3s all 0.2s;
+}
+
+@media only screen and (min-width: 1536px) {
+  html {
+    font-size: 65%;
+  }
+}
+
+@media only screen and (max-width: 1030px) {
+  html {
+    font-size: 57%;
+  }
+}
+
+@media only screen and (max-width: 600px) {
+  html {
+    font-size: 54%;
+  }
+}
+
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen",
+    "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
-
-code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
 }
