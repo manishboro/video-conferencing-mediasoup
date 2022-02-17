@@ -1,10 +1,10 @@
 import * as mediasoupClient from "mediasoup-client";
 
 export default class SocketFunctionTest {
-  constructor(socket, room_id, setTrigger) {
+  constructor(socket, room_id, handleRemoteStream) {
     this.room_id = room_id;
     this.socket = socket;
-    this.trigger = setTrigger;
+    this.handleRemoteStream = handleRemoteStream;
 
     // Store transport IDs inside
     this.isProducersExistCalled = undefined;
@@ -15,11 +15,8 @@ export default class SocketFunctionTest {
     this.consumerTransport = undefined;
 
     // Store all consumers
-    this.consumers = [];
-
-    this.consumersMap = new Map();
-
-    this.remoteStream = new MediaStream();
+    this.consumers = new Map();
+    this.consumerTransports = new Map();
   }
 
   joinRoom({ track }) {
@@ -63,7 +60,11 @@ export default class SocketFunctionTest {
         try {
           // Signal local DTLS parameters to the server side transport
           // see server's socket.on('transport-connect', ...)
-          await this.socket.emit("transport-connect", { dtlsParameters, transport_id: this.producerTransport.id, room_id: this.room_id });
+          await this.socket.emit("transport-connect", {
+            dtlsParameters,
+            transport_id: this.producerTransport.id,
+            room_id: this.room_id,
+          });
 
           // Tell the transport that parameters were transmitted.
           callback();
@@ -134,13 +135,15 @@ export default class SocketFunctionTest {
 
       this.consumerTransport = this.device.createRecvTransport(transportParams);
 
-      // console.log("this.consumerTransport_id", this.consumerTransport.id);
-
       this.consumerTransport.on("connect", async ({ dtlsParameters }, callback, errback) => {
         try {
           // Signal local DTLS parameters to the server side transport
           // see server's socket.on('transport-connect', ...)
-          await this.socket.emit("transport-connect", { room_id: this.room_id, dtlsParameters, transport_id: transportParams.id });
+          await this.socket.emit("transport-connect", {
+            room_id: this.room_id,
+            dtlsParameters,
+            transport_id: transportParams.id,
+          });
 
           // Tell the transport that parameters were transmitted.
           callback();
@@ -176,15 +179,32 @@ export default class SocketFunctionTest {
 
         const consumer = await this.consumerTransport.consume({ id, producerId, kind, rtpParameters });
 
-        this.remoteStream.addTrack(consumer.track);
-
         this.socket.emit("consumer-resume", { consumer_id: id });
 
-        console.log("hello");
+        this.consumers.set(consumer.id, { consumer, consumerTransport: this.consumerTransport });
 
-        this.trigger();
+        this.setRemoteStream();
       }
     );
+  }
+
+  setRemoteStream() {
+    let stream = new MediaStream();
+
+    for (const [key, value] of this.consumers.entries()) {
+      stream.addTrack(value.consumer.track);
+    }
+
+    this.handleRemoteStream(stream);
+  }
+
+  deleteConsumer(consumer_id) {
+    const consumer = this.consumers.get(consumer_id);
+
+    consumer.consumer.close();
+    consumer.consumerTransport.close();
+
+    this.consumers.delete(consumer_id);
   }
 
   // findProducerFromTransportsAndClose(remoteProducerId) {

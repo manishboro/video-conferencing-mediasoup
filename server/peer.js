@@ -20,7 +20,7 @@ module.exports = class Peer {
   }
 
   async createProducer(producerTransportId, rtpParameters, kind) {
-    //TODO handle null errors
+    // TODO handle null errors
     let producer = await this.transports.get(producerTransportId).produce({ kind, rtpParameters });
 
     this.producers.set(producer.id, producer);
@@ -28,10 +28,7 @@ module.exports = class Peer {
     producer.on(
       "transportclose",
       function () {
-        console.log("Producer transport close", {
-          name: `${this.name}`,
-          consumer_id: `${producer.id}`,
-        });
+        console.log("Producer transport close", { name: `${this.name}`, producer_id: `${producer.id}` });
 
         producer.close();
 
@@ -65,6 +62,7 @@ module.exports = class Peer {
       "transportclose",
       function () {
         console.log("Consumer transport close", { name: `${this.name}`, consumer_id: `${consumer.id}` });
+
         this.consumers.delete(consumer.id);
       }.bind(this)
     );

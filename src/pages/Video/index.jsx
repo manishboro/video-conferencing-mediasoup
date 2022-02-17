@@ -1,7 +1,6 @@
 import React from "react";
-import { useParams, useLocation } from "react-router-dom";
-import queryString from "query-string";
 import { nanoid } from "nanoid";
+import { useParams } from "react-router-dom";
 
 import { Box, Grid, IconButton } from "@mui/material";
 import MicTwoToneIcon from "@mui/icons-material/MicTwoTone";
@@ -13,19 +12,14 @@ import SocketFunctionTest from "../../utils/socket_functions";
 import { socket } from "../../utils/socket";
 import { useMyVideoStream } from "../../components/Contexts/MyVideoStreamContext";
 
-const Video = ({ match }) => {
-  const location = useLocation();
-  const query = queryString.parse(location.search);
-
+const Video = () => {
   const { roomName } = useParams();
   const { getLocalStream } = useMyVideoStream();
 
   const [localStream, setLocalStream] = React.useState();
-  const [trigger, setTrigger] = React.useState(nanoid());
+  const [remoteStream, setRemoteStream] = React.useState();
 
-  const triggerStream = () => setTrigger(nanoid());
-
-  const socketFn = React.useMemo(() => new SocketFunctionTest(socket, roomName, triggerStream), [roomName]);
+  const socketFn = React.useMemo(() => new SocketFunctionTest(socket, roomName, setRemoteStream), [roomName]);
 
   React.useEffect(() => {
     socket.on("connection-success", async ({ socketId }) => {
@@ -60,10 +54,14 @@ const Video = ({ match }) => {
       // }
     });
 
-    socket.on("producer-closed", ({ remoteProducerId }) => {
+    socket.on("producer-closed", ({ consumer_id }) => {
       // Server notification is received when a producer is closed
       // we need to close the client-side consumer and associated transport
       console.log("producer closed");
+
+      setRemoteStream(undefined);
+
+      socketFn.deleteConsumer(consumer_id);
 
       // socketFn.findProducerFromTransportsAndClose(remoteProducerId);
 
@@ -78,13 +76,6 @@ const Video = ({ match }) => {
     // eslint-disable-next-line
   }, [socketFn]);
 
-  const { stream, remoteStreamBool } = React.useMemo(() => {
-    let stream = socketFn.getRemoteStream();
-    let remoteStreamBool = stream.getVideoTracks()[0] || stream.getAudioTracks()[0];
-
-    return { stream, remoteStreamBool };
-  }, [trigger]);
-
   // console.log("remoteStream", stream);
 
   return (
@@ -93,14 +84,14 @@ const Video = ({ match }) => {
         <Box sx={{ height: "calc(100% - 7rem)", position: "relative", overflow: "auto", padding: "0 2rem" }}>
           <Grid container justifyContent="center" alignItems="center" sx={{ height: "100%" }}>
             {/* Local stream */}
-            <Grid item xs={12} sm={remoteStreamBool ? 6 : 12} md={remoteStreamBool ? 6 : 12}>
+            <Grid item xs={12} sm={remoteStream ? 6 : 12} md={remoteStream ? 6 : 12}>
               <VideoPlayer stream={localStream} muted={true} />
             </Grid>
 
             {/* Remote stream */}
-            {remoteStreamBool ? (
+            {remoteStream ? (
               <Grid item xs={12} sm={6} md={6} key={nanoid()}>
-                <VideoPlayer stream={stream} />
+                <VideoPlayer stream={remoteStream} />
               </Grid>
             ) : null}
           </Grid>

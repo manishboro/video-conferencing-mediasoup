@@ -125,7 +125,7 @@ io.on("connection", async (socket) => {
     producerList.forEach((el) => socket.emit("new-producer", [el]));
   });
 
-  socket.on("createWebRtcTransport", async ({ room_id, consumer }, callback) => {
+  socket.on("createWebRtcTransport", async ({ room_id }, callback) => {
     console.log("Create WebRTC Transport");
     const transport = await roomList.get(room_id).createWebRtcTransport(socket.id);
 
