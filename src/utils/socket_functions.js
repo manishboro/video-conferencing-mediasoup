@@ -93,7 +93,6 @@ export default class SocketFunctionTest {
           },
           ({ id }) => {
             callback({ id });
-            this.socket.emit("getProducers");
           }
         );
       });
@@ -101,6 +100,11 @@ export default class SocketFunctionTest {
       // Close transport if connection fails
       this.producerTransport.on("connectionstatechange", (connectionState) => {
         if (!connectionState) this.producerTransport.close();
+      });
+
+      this.socket.emit("getProducers", (data) => {
+        console.log("getProducers", data);
+        data.forEach((el) => this.signalNewConsumerTransport(el));
       });
 
       this.connectSendTransport(track);
@@ -113,7 +117,7 @@ export default class SocketFunctionTest {
       if (track.videoTrack) {
         this.videoProducer = await this.producerTransport.produce({
           track: track.videoTrack,
-          codec: this.device.rtpCapabilities.codecs.find((codec) => codec.mimeType.toLowerCase() === "video/h264"),
+          // codec: this.device.rtpCapabilities.codecs.find((codec) => codec.mimeType.toLowerCase() === "video/h264"),
         });
 
         this.videoProducer.on("trackended", () => this.videoProducer.close());
@@ -195,7 +199,11 @@ export default class SocketFunctionTest {
   setRemoteStream() {
     let stream = new MediaStream();
 
-    for (const [key, value] of this.consumers.entries()) stream.addTrack(value.consumer.track);
+    for (const [key, value] of this.consumers.entries()) {
+      stream.addTrack(value.consumer.track);
+    }
+
+    console.log(stream);
 
     this.handleRemoteStream(stream);
   }

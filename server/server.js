@@ -119,14 +119,18 @@ io.on("connection", async (socket) => {
     roomList.get(socket.room_id).removePeer(socket.id);
   });
 
-  socket.on("getProducers", () => {
+  socket.on("getProducers", (callback) => {
     if (!roomList.has(socket.room_id)) return;
     console.log("Get producers", { name: `${roomList.get(socket.room_id).getPeers().get(socket.id).name}` });
 
     // Send all the current producer to newly joined member
     let producerList = roomList.get(socket.room_id).getProducerListForPeer(socket.id);
 
-    producerList.forEach((el) => socket.emit("new-producer", [el]));
+    console.log("producerList", producerList);
+
+    callback(producerList);
+
+    // producerList.forEach((el) => socket.emit("new-producer", [el]));
   });
 
   socket.on("createWebRtcTransport", async ({ room_id }, callback) => {

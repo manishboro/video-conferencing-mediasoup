@@ -25,15 +25,14 @@ module.exports = class Room {
     let producerList = [];
 
     this.peers.forEach((peer) => {
-      peer.producers.forEach(
-        (producer) =>
-          peer.id !== socket_id &&
+      peer.id !== socket_id &&
+        peer.producers.forEach((producer) =>
           producerList.push({
             producer_id: producer.id,
             kind: producer.kind,
             producer_socket_id: peer.id,
           })
-      );
+        );
     });
 
     return producerList;

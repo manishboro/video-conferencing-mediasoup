@@ -25,6 +25,8 @@ module.exports = class Peer {
 
     this.producers.set(producer.id, producer);
 
+    // console.log(this.producers);
+
     producer.on(
       "transportclose",
       function () {
@@ -54,7 +56,7 @@ module.exports = class Peer {
       return;
     }
 
-    if (consumer.type === "simulcast") await consumer.setPreferredLayers({ spatialLayer: 2, temporalLayer: 2 });
+    // if (consumer.type === "simulcast") await consumer.setPreferredLayers({ spatialLayer: 2, temporalLayer: 2 });
 
     this.consumers.set(consumer.id, consumer);
 
