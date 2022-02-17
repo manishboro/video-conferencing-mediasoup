@@ -90,7 +90,11 @@ io.on("connection", async (socket) => {
     console.log("Server Socket ID", socket.id);
 
     if (roomList.has(room_id)) {
-      roomList.get(room_id).addPeer(new Peer(socket.id, name));
+      if (roomList.get(room_id).getPeers().size < 2) {
+        roomList.get(room_id).addPeer(new Peer(socket.id, name));
+      } else {
+        return callback({ error: "The room is full" });
+      }
     } else {
       // Create router if room not present
       const router = await createRouter();

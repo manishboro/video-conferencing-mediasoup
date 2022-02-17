@@ -20,28 +20,35 @@ export default class SocketFunctionTest {
   }
 
   joinRoom({ track }) {
-    this.socket.emit("join-room", { room_id: this.room_id, name: `Manish ${this.socket.id}` }, async (data) => {
-      console.log(data);
+    try {
+      this.socket.emit("join-room", { room_id: this.room_id, name: `Manish ${this.socket.id}` }, async (data) => {
+        console.log(data);
 
-      // Receive rtpCapabilities of router from the server
-      this.rtpCapabilities = data.rtpCapabilities;
+        // Throw error if room is full
+        if (data.error) throw Error(data.error);
 
-      console.log("Router RTP Capabilities - ", this.rtpCapabilities);
+        // Receive rtpCapabilities of router from the server
+        this.rtpCapabilities = data.rtpCapabilities;
 
-      if (this.rtpCapabilities) {
-        this.device = new mediasoupClient.Device();
+        console.log("Router RTP Capabilities - ", this.rtpCapabilities);
 
-        // Loads the device with the RTP capabilities of the mediasoup router.
-        // This is how the device knows about the allowed media codecs and other settings.
-        await this.device.load({ routerRtpCapabilities: this.rtpCapabilities });
+        if (this.rtpCapabilities) {
+          this.device = new mediasoupClient.Device();
 
-        console.log("Device RTP Capabilities - ", this.device.rtpCapabilities);
+          // Loads the device with the RTP capabilities of the mediasoup router.
+          // This is how the device knows about the allowed media codecs and other settings.
+          await this.device.load({ routerRtpCapabilities: this.rtpCapabilities });
 
-        if (this.device.canProduce("video") || this.device.canProduce("audio")) {
-          this.signalNewProducerTransport(track);
+          console.log("Device RTP Capabilities - ", this.device.rtpCapabilities);
+
+          if (this.device.canProduce("video") || this.device.canProduce("audio")) {
+            this.signalNewProducerTransport(track);
+          }
         }
-      }
-    });
+      });
+    } catch (err) {
+      console.log(err.message);
+    }
   }
 
   async signalNewProducerTransport(track) {
@@ -86,6 +93,7 @@ export default class SocketFunctionTest {
           },
           ({ id }) => {
             callback({ id });
+            this.socket.emit("getProducers");
           }
         );
       });
@@ -94,8 +102,6 @@ export default class SocketFunctionTest {
       this.producerTransport.on("connectionstatechange", (connectionState) => {
         if (!connectionState) this.producerTransport.close();
       });
-
-      this.socket.emit("getProducers");
 
       this.connectSendTransport(track);
     });
@@ -189,9 +195,7 @@ export default class SocketFunctionTest {
   setRemoteStream() {
     let stream = new MediaStream();
 
-    for (const [key, value] of this.consumers.entries()) {
-      stream.addTrack(value.consumer.track);
-    }
+    for (const [key, value] of this.consumers.entries()) stream.addTrack(value.consumer.track);
 
     this.handleRemoteStream(stream);
   }
