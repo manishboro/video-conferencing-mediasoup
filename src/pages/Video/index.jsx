@@ -62,21 +62,12 @@ const Video = () => {
       setRemoteStream(undefined);
 
       socketFn.deleteConsumer(consumer_id);
-
-      // socketFn.findProducerFromTransportsAndClose(remoteProducerId);
-
-      // // Remove the consumer transport from the list
-      // socketFn.removeProducerFromTransports(remoteProducerId);
-
-      // setRemoteStream(undefined);
     });
 
     return () => socket.removeAllListeners();
 
     // eslint-disable-next-line
   }, [socketFn]);
-
-  // console.log("remoteStream", stream);
 
   return (
     <>

@@ -173,8 +173,6 @@ export default class SocketFunctionTest {
         rtpCapabilities: this.rtpCapabilities,
       },
       async (data) => {
-        console.log(data);
-
         const { id, kind, producerId, rtpParameters } = data;
 
         const consumer = await this.consumerTransport.consume({ id, producerId, kind, rtpParameters });
@@ -206,28 +204,6 @@ export default class SocketFunctionTest {
 
     this.consumers.delete(consumer_id);
   }
-
-  // findProducerFromTransportsAndClose(remoteProducerId) {
-  //   const producerToClose = this.consumers.find((transportData) => transportData.producerId === remoteProducerId);
-
-  //   producerToClose.consumerTransport.close();
-  //   producerToClose.consumer.close();
-  // }
-
-  // removeProducerFromTransports(remoteProducerId) {
-  //   return this.consumers.filter((transportData) => transportData.producerId !== remoteProducerId);
-  // }
-
-  // getProducers() {
-  //   this.socket.emit("getProducers", (data) => {
-  //     const { filteredProducers } = data;
-
-  //     console.log("filteredProducers", filteredProducers);
-
-  //     // For each of the video / audio producer create a consumer
-  //     // filteredProducers.forEach(async (producer) => await this.signalNewConsumerTransport({ producer }));
-  //   });
-  // }
 
   getRemoteStream() {
     return this.remoteStream;
